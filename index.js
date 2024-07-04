@@ -218,16 +218,19 @@ function solveGame() {
   const probability = solveMines.getProbability(board);
 
   const probabilityCells = [];
+  let checkClickAllSafe = true;
 
   probability.forEach((y, dy) => {
     y.forEach((x, dx) => {
       if (x === PROBABILITY_SAFE) {
+        checkClickAllSafe = false;
         simulateClick(`#cell_${dx}_${dy}`);
         console.log(`Safe: (${dx}, ${dy})`);
         return;
       }
 
       if (x === PROBABILITY_MINE) {
+        checkClickAllSafe = false;
         simulateClick(`#cell_${dx}_${dy}`, "right");
         console.log(`Flag: (${dx}, ${dy})`);
         return;
@@ -251,7 +254,7 @@ function solveGame() {
   const randomMinCell =
     minCellList[Math.floor(Math.random() * minCellList.length)];
 
-  if (randomMinCell) {
+  if (randomMinCell && checkClickAllSafe) {
     simulateClick(`#cell_${randomMinCell.x}_${randomMinCell.y}`);
   }
 
@@ -279,8 +282,6 @@ function start() {
         }
       });
     });
-
-    
   }, 800);
 }
 
