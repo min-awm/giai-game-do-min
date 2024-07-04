@@ -1,12 +1,150 @@
-let cellGameData;
+// Solve
+class SolveMines {
+  CELL_NOT_OPEN = -2;
+  CELL_MINE = -1;
+  CELL_SAFE = 9;
+  PROBABILITY_UNKNOWN = -1;
+  PROBABILITY_SAFE = -2;
+  PROBABILITY_MINE = -3;
+  board;
+  probability;
 
-function main() {
-  cellGameData = getCellGame();
-  placeSafe(cellGameData);
+  constructor() {}
+
+  getProbability(board) {
+    this.board = board; // -2: not open ,-1: mine, 9: safe
+    this.probability = Array(this.board?.length)
+      .fill()
+      .map(() => Array(this.board[0]?.length).fill(this.PROBABILITY_UNKNOWN)); // -1: unknown, -2: safe, -3: mine
+
+    this.board.forEach((y, dy) => {
+      y.forEach((x, dx) => {
+        if (x >= 1 && x <= 8) {
+          this.calcProbability(dx, dy, x);
+        }
+      });
+    });
+
+    return this.probability;
+  }
+
+  print() {
+    let printData = this.probability.map((y) =>
+      y.map((cell) => {
+        switch (cell) {
+          case this.PROBABILITY_UNKNOWN:
+            return "Unk";
+          case this.PROBABILITY_SAFE:
+            return "Safe";
+          case this.PROBABILITY_MINE:
+            return "Mine";
+          default:
+            return cell;
+        }
+      })
+    );
+
+    this.board.forEach((y, dy) => {
+      y.forEach((x, dx) => {
+        if (x >= 1 && x <= 8) {
+          printData[dy][dx] = x;
+        } else if (x === 0) {
+          printData[dy][dx] = "";
+        } else if (x === -1) {
+          printData[dy][dx] = "Mine";
+        }
+      });
+    });
+
+    console.table(printData);
+  }
+
+  getAdjacentCells(x, y) {
+    const direction = [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ];
+    const adjacentCells = [];
+    direction.forEach((e) => {
+      const adjacentCellX = e[0] + x;
+      const adjacentCellY = e[1] + y;
+      if (
+        adjacentCellX >= 0 &&
+        adjacentCellX <= this.board[0]?.length - 1 &&
+        adjacentCellY >= 0 &&
+        adjacentCellY <= this.board?.length - 1
+      ) {
+        adjacentCells.push([
+          adjacentCellX,
+          adjacentCellY,
+          this.board[adjacentCellY][adjacentCellX],
+        ]);
+      }
+    });
+
+    return adjacentCells;
+  }
+
+  // Kiểm tra tỉ lệ có bom của các ô
+  calcProbability(x, y, numberMine) {
+    const adjacentCells = this.getAdjacentCells(x, y);
+    let totalMines = 0;
+    const safeArr = [];
+    const notOpenCells = [];
+
+    adjacentCells.forEach((e) => {
+      switch (e[2]) {
+        case this.CELL_MINE:
+          totalMines++;
+          break;
+        case this.CELL_SAFE:
+          safeArr.push([e[0], e[1]]);
+          break;
+        case this.CELL_NOT_OPEN:
+          notOpenCells.push([e[0], e[1]]);
+          break;
+        default:
+          break;
+      }
+    });
+
+    if (numberMine === totalMines) {
+      adjacentCells.forEach((e) => {
+        if (e[2] === this.CELL_NOT_OPEN) {
+          this.board[e[1]][e[0]] = this.CELL_SAFE;
+          this.probability[e[1]][e[0]] = this.PROBABILITY_SAFE;
+        }
+      });
+    } else if (numberMine > totalMines) {
+      const remainingMines = numberMine - totalMines;
+      let probabilityMine = (remainingMines / notOpenCells.length) * 100;
+
+      if (notOpenCells.length === remainingMines) {
+        probabilityMine = this.PROBABILITY_MINE;
+      }
+
+      notOpenCells.forEach((e) => {
+        if (this.probability[e[1]][e[0]] >= this.PROBABILITY_UNKNOWN) {
+          if (probabilityMine === this.PROBABILITY_MINE) {
+            this.board[e[1]][e[0]] = this.CELL_MINE;
+            this.probability[e[1]][e[0]] = this.PROBABILITY_MINE;
+          } else {
+            this.probability[e[1]][e[0]] += probabilityMine;
+          }
+        }
+      });
+    }
+  }
 }
-main();
 
-function getCellGame() {
+// Run auto click in https://minesweeper.online/
+function getBoard() {
   const allElements = document.querySelectorAll('[id^="cell_"]');
   const cellElements = [];
   const regex = /^cell_\d+_\d+$/;
@@ -20,14 +158,16 @@ function getCellGame() {
         cellElements.push([]);
       }
 
-      cellElements[row].push(getNumberMines(element.classList));
+      cellElements[row].push(getCell(element.classList));
     }
   });
 
   return cellElements;
 }
 
-function getNumberMines(classList) {
+function getCell(classList) {
+  // -2: not open ,-1: mine, 9: safe
+
   const regex = /^hd_type(\d+)$/;
   for (const item of classList) {
     const match = item.match(regex);
@@ -36,96 +176,15 @@ function getNumberMines(classList) {
     }
   }
 
-  return -1;
-}
-
-function placeSafe() {
-  console.log(cellGameData);
-  const check = checkSafe(4, 4);
-  console.log(check);
-  cellGameData.forEach((cellCol, col) => {
-    cellCol.forEach((cellRow, row) => {
-      const mine = cellGameData[row][col];
-      if (mine === -1) {
-        // console.log(cellGameData[col][row]);
-      }
-    });
-  });
-}
-
-function checkSafe(row, col) {
-  let adjacentItemCheck = getAdjacent(row, col);
-  adjacentItemCheck = adjacentItemCheck.filter((e) => e.mine > 0 && e.mine < 9);
-
-  let status = false;
-  adjacentItemCheck.forEach((e) => {
-    const numberMine = e.mine;
-    let checkArr = getAdjacent(e.row, e.col);
-    let hasMine = checkArr.filter((e) => e.mine > 9 );
-    let canSelected = checkArr.filter((e) => e.mine === -1);
-
-    console.log(hasMine);
-    if (hasMine.length >= numberMine) {
-      status = true;
-    } else {
-      const remainMine = numberMine - hasMine.length;
-
-      if (canSelected.length === remainMine) {
-        canSelected.forEach((e) => {
-          cellGameData[e.row][e.col] = 10;
-        });
-      }
-    }
-  });
-  
-
-  return status;
-}
-
-function getAdjacent(row, col) {
-  /*
-        N.W   N   N.E
-            \   |   /
-            \  |  /
-        W----Cell----E
-                / | \
-            /   |  \
-        S.W    S   S.E
-
-        Cell-->Current Cell (row, col)
-        N -->  North        (row-1, col)
-        S -->  South        (row+1, col)
-        E -->  East         (row, col+1)
-        W -->  West            (row, col-1)
-        N.E--> North-East   (row-1, col+1)
-        N.W--> North-West   (row-1, col-1)
-        S.E--> South-East   (row+1, col+1)
-        S.W--> South-West   (row+1, col-1)
-    */
-  const dx = [-1, -1, -1, 0, 0, 1, 1, 1];
-  const dy = [-1, 0, 1, -1, 1, -1, 0, 1];
-
-  let adjacentList = [];
-  for (d = 0; d < 8; d++) {
-    const newRow = row + dx[d];
-    const newCol = col + dy[d];
-
-    try {
-      const mine = cellGameData[newRow][newCol];
-
-      adjacentList.push({
-        row: newRow,
-        col: newCol,
-        mine,
-      });
-    } catch (error) {}
+  if (classList.contains("hd_flag")) {
+    return -1;
   }
 
-  return adjacentList;
+  return -2;
 }
 
 function simulateClick(element, mouseButton) {
-  const event = new MouseEvent("mousedown", {
+  const options = {
     bubbles: true,
     cancelable: false,
     view: window,
@@ -140,9 +199,89 @@ function simulateClick(element, mouseButton) {
     metaKey: false,
     button: mouseButton === "right" ? 2 : 0,
     relatedTarget: null,
-  });
+  };
 
-  document.querySelectorAll(element)[0].dispatchEvent(event);
+  const eventMouseDown = new MouseEvent("mousedown", options);
+  const eventMouseUP = new MouseEvent("mouseup", options);
+
+  document.querySelectorAll(element)[0].dispatchEvent(eventMouseDown);
+  document.querySelectorAll(element)[0].dispatchEvent(eventMouseUP);
 }
 
-// simulateClick("#cell_15_4", "right");
+function solveGame() {
+  const PROBABILITY_UNKNOWN = -1;
+  const PROBABILITY_SAFE = -2;
+  const PROBABILITY_MINE = -3;
+
+  const board = getBoard();
+  const solveMines = new SolveMines();
+  const probability = solveMines.getProbability(board);
+
+  const probabilityCells = [];
+
+  probability.forEach((y, dy) => {
+    y.forEach((x, dx) => {
+      if (x === PROBABILITY_SAFE) {
+        simulateClick(`#cell_${dx}_${dy}`);
+        console.log(`Safe: (${dx}, ${dy})`);
+        return;
+      }
+
+      if (x === PROBABILITY_MINE) {
+        simulateClick(`#cell_${dx}_${dy}`, "right");
+        console.log(`Flag: (${dx}, ${dy})`);
+        return;
+      }
+
+      if (x > -1) {
+        probabilityCells.push({
+          x: dx,
+          y: dy,
+          value: x,
+        });
+        return;
+      }
+    });
+  });
+
+  const minProbability = Math.min(...probabilityCells.map((d) => d.value));
+  const minCellList = probabilityCells.filter(
+    (d) => d.value === minProbability
+  );
+  const randomMinCell =
+    minCellList[Math.floor(Math.random() * minCellList.length)];
+
+  if (randomMinCell) {
+    simulateClick(`#cell_${randomMinCell.x}_${randomMinCell.y}`);
+  }
+
+  solveMines.print();
+}
+
+function start() {
+  simulateClick(`#cell_0_0`);
+
+  const solveGameIntervalId = setInterval(() => {
+    solveGame();
+
+    const topAreaFaceDom = document.getElementById("top_area_face");
+    if (topAreaFaceDom.classList.contains("hd_top-area-face-win")) {
+      clearInterval(solveGameIntervalId);
+      console.log("Đã thắng");
+    }
+
+    const board = getBoard();
+    board.forEach((y) => {
+      y.forEach((x) => {
+        if (x >= 10) {
+          clearInterval(solveGameIntervalId);
+          console.log("Chọn trúng mìn");
+        }
+      });
+    });
+
+    
+  }, 800);
+}
+
+start();
